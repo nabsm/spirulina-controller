@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { usePoll } from "../lib/usePoll.js";
 import { Card, Pill, Button, Input, ToggleSwitch, TriToggle } from "./ui.jsx";
@@ -24,6 +24,37 @@ function fmtNum(v, digits = 0) {
   if (v === null || v === undefined) return "-";
   return Number(v).toFixed(digits);
 }
+
+const LuxChart = memo(function LuxChart({ chartData, activeMin, activeMax }) {
+  return (
+    <div className="h-80 min-h-[320px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <XAxis dataKey="t" tickFormatter={(v) => fmtTime(v)} minTickGap={20} stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
+          <YAxis stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
+          <Tooltip
+            labelFormatter={(v) => `Time: ${fmtTime(v)}`}
+            formatter={(val) => [val, "lux"]}
+            contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "0.5rem", color: "#f1f5f9" }}
+            labelStyle={{ color: "#94a3b8" }}
+          />
+          {activeMin !== null && activeMax !== null && (
+            <ReferenceArea y1={activeMin} y2={activeMax} fill="#60a5fa" fillOpacity={0.08} />
+          )}
+          <Line
+            type="monotone"
+            dataKey="lux"
+            dot={false}
+            strokeWidth={2}
+            stroke="#60a5fa"
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
 
 export default function Dashboard() {
   const live = usePoll(api.live, 2500, { immediate: true });
@@ -51,6 +82,7 @@ export default function Dashboard() {
   // Schedule editing
   const [schedDraft, setSchedDraft] = useState(null);
   const [saveMsg, setSaveMsg] = useState("");
+  const [schedConfirm, setSchedConfirm] = useState(null);
 
   // UI action error display
   const [uiError, setUiError] = useState("");
@@ -58,9 +90,9 @@ export default function Dashboard() {
   const liveData = live.data;
   const luxNow = liveData?.last_reading?.value;
   const avg30 = liveData?.avg_lux_30s;
-  const thr = liveData?.thresholds || {};
+  const thr = useMemo(() => liveData?.thresholds || {}, [liveData?.thresholds]);
   const lightOn = liveData?.light_state;
-  const ctrl = liveData?.controller || {};
+  const ctrl = useMemo(() => liveData?.controller || {}, [liveData?.controller]);
   const mode = liveData?.mode || "unknown";
 
   const simEnabled = !!sim.data?.enabled;
@@ -71,7 +103,7 @@ export default function Dashboard() {
     const ctrlTone = ctrl?.enabled ? "ok" : "warn";
     const lightTone = lightOn ? "accent" : "neutral";
     return { sensorTone, ctrlTone, lightTone };
-  }, [liveData, ctrl, lightOn]);
+  }, [liveData?.last_reading?.ok, ctrl?.enabled, lightOn]);
 
   const chartData = useMemo(() => {
     const rows = readings.data?.rows || [];
@@ -294,34 +326,7 @@ export default function Dashboard() {
               <Pill tone="warn">Auto-refresh paused</Pill>
             </div>
           )}
-          <div className="h-80 min-h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="t" tickFormatter={(v) => fmtTime(v)} minTickGap={20} stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
-                <YAxis stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
-                <Tooltip
-                  labelFormatter={(v) => `Time: ${fmtTime(v)}`}
-                  formatter={(val) => [val, "lux"]}
-                  contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "0.5rem", color: "#f1f5f9" }}
-                  labelStyle={{ color: "#94a3b8" }}
-                />
-
-                {activeMin !== null && activeMax !== null && (
-                  <ReferenceArea y1={activeMin} y2={activeMax} fill="#60a5fa" fillOpacity={0.08} />
-                )}
-
-                <Line
-                  type="monotone"
-                  dataKey="lux"
-                  dot={false}
-                  strokeWidth={2}
-                  stroke="#60a5fa"
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <LuxChart chartData={chartData} activeMin={activeMin} activeMax={activeMax} />
           <div className="mt-3 text-xs text-text2">
             Shaded band shows active min/max thresholds (when inside a schedule window).
           </div>
@@ -392,6 +397,8 @@ export default function Dashboard() {
             title="Schedule (time windows)"
             right={
               <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => setSchedConfirm("defaults")}>Load Defaults</Button>
+                <Button variant="danger" onClick={() => setSchedConfirm("clear")}>Clear</Button>
                 <Button variant="ghost" onClick={addSchedRow}>Add</Button>
                 <Button variant="accent" onClick={saveSchedule} disabled={!schedDraft || schedDraft.length === 0}>
                   Save
@@ -399,6 +406,36 @@ export default function Dashboard() {
               </div>
             }
           >
+            {schedConfirm && (
+              <div className="mb-3 flex items-center gap-3 rounded-xl2 border border-yellow-500/50 bg-yellow-900/20 p-3 text-sm">
+                <span className="text-yellow-300">
+                  {schedConfirm === "defaults"
+                    ? "Replace all schedule windows with defaults?"
+                    : "Remove all schedule windows?"}
+                </span>
+                <Button
+                  variant={schedConfirm === "defaults" ? "accent" : "danger"}
+                  onClick={async () => {
+                    await safe(async () => {
+                      if (schedConfirm === "defaults") {
+                        const data = await api.scheduleDefaults();
+                        setSchedDraft(data.windows);
+                        await api.schedulePut(data.windows);
+                      } else {
+                        setSchedDraft([]);
+                        await api.schedulePut([]);
+                      }
+                      await schedule.refresh();
+                      await live.refresh();
+                    });
+                    setSchedConfirm(null);
+                  }}
+                >
+                  Confirm
+                </Button>
+                <Button variant="ghost" onClick={() => setSchedConfirm(null)}>Cancel</Button>
+              </div>
+            )}
             <div className="overflow-auto">
               <table className="w-full text-sm">
                 <thead className="text-text2">

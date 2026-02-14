@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import time
+from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -67,13 +69,34 @@ sensor = build_sensor()
 actuator_sim = SimulatedLightActuator()
 controller = LuxController()
 
-schedule = SchedulePolicy(
-    windows=[
-        TimeWindow(id="morning", start=time(7, 0), end=time(11, 0), min_lux=3000, max_lux=6000, priority=10, label="Morning"),
-        TimeWindow(id="midday", start=time(11, 0), end=time(15, 0), min_lux=3500, max_lux=6500, priority=10, label="Midday"),
-        TimeWindow(id="afternoon", start=time(15, 0), end=time(19, 0), min_lux=3200, max_lux=6200, priority=10, label="Afternoon"),
-    ]
-)
+def _load_default_windows() -> list[TimeWindow]:
+    defaults_path = Path(__file__).resolve().parent / "config" / "default_schedule.json"
+    try:
+        data = json.loads(defaults_path.read_text())
+        windows = []
+        for w in data["windows"]:
+            h1, m1 = w["start_time"].split(":")
+            h2, m2 = w["end_time"].split(":")
+            windows.append(TimeWindow(
+                id=w["id"],
+                start=time(int(h1), int(m1)),
+                end=time(int(h2), int(m2)),
+                min_lux=float(w["min_lux"]),
+                max_lux=float(w["max_lux"]),
+                enabled=bool(w.get("enabled", True)),
+                priority=int(w.get("priority", 0)),
+                label=w.get("label", ""),
+            ))
+        return windows
+    except Exception as e:
+        logger.warning("Failed to load default_schedule.json, using hardcoded defaults: %s", e)
+        return [
+            TimeWindow(id="morning", start=time(7, 0), end=time(11, 0), min_lux=3000, max_lux=6000, priority=10, label="Morning"),
+            TimeWindow(id="midday", start=time(11, 0), end=time(15, 0), min_lux=3500, max_lux=6500, priority=10, label="Midday"),
+            TimeWindow(id="afternoon", start=time(15, 0), end=time(19, 0), min_lux=3200, max_lux=6200, priority=10, label="Afternoon"),
+        ]
+
+schedule = SchedulePolicy(windows=_load_default_windows())
 
 repo = SQLiteRepository(settings.sqlite_path)
 sampler: SamplerService | None = None

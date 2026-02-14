@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..core.config import settings
@@ -125,6 +128,15 @@ async def get_schedule_api(schedule: SchedulePolicy = Depends(get_schedule)):
             "label": w.label,
         })
     return {"windows": out}
+
+
+@router.get("/schedule/defaults")
+async def get_schedule_defaults():
+    defaults_path = Path(__file__).resolve().parent.parent / "config" / "default_schedule.json"
+    if not defaults_path.exists():
+        raise HTTPException(status_code=404, detail="Default schedule file not found")
+    data = json.loads(defaults_path.read_text())
+    return data
 
 
 @router.put("/schedule")

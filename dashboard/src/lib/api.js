@@ -36,6 +36,7 @@ export const api = {
     request("/api/controller/override/cancel", { method: "POST" }),
 
   scheduleGet: () => request("/api/schedule"),
+  scheduleDefaults: () => request("/api/schedule/defaults"),
   schedulePut: (windows) =>
     request("/api/schedule", {
       method: "PUT",

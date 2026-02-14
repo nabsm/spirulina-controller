@@ -1,0 +1,8 @@
+{
+  "windows": [
+    { "id": "morning",   "start_time": "06:30", "end_time": "09:30", "min_lux": 2500, "max_lux": 4500, "enabled": true,  "priority": 10, "label": "Morning activation" },
+    { "id": "midday",    "start_time": "09:30", "end_time": "15:30", "min_lux": 2000, "max_lux": 6000, "enabled": true,  "priority": 10, "label": "Midday natural dominance" },
+    { "id": "afternoon", "start_time": "15:30", "end_time": "18:30", "min_lux": 3000, "max_lux": 5000, "enabled": true,  "priority": 10, "label": "Afternoon extension" },
+    { "id": "night",     "start_time": "18:30", "end_time": "06:30", "min_lux": 0,    "max_lux": 0,    "enabled": false, "priority": 0,  "label": "Night" }
+  ]
+}
