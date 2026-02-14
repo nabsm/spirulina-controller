@@ -1,7 +1,7 @@
 from __future__ import annotations
 import aiosqlite
-from datetime import datetime
-from typing import List
+from datetime import datetime, timezone
+from typing import Dict, List
 from ..domain.models import Reading, ActionEvent
 
 
@@ -34,6 +34,15 @@ class SQLiteRepository:
                     min_lux REAL,
                     max_lux REAL,
                     window_label TEXT
+                )
+                """
+            )
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
                 """
             )
@@ -121,3 +130,20 @@ class SQLiteRepository:
                 )
             )
         return list(reversed(out))
+
+    async def get_all_settings(self) -> Dict[str, str]:
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute("SELECT key, value FROM settings")
+            rows = await cur.fetchall()
+        return {k: v for k, v in rows}
+
+    async def set_settings_batch(self, updates: Dict[str, str]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self._path) as db:
+            for key, value in updates.items():
+                await db.execute(
+                    "INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                    (key, value, now),
+                )
+            await db.commit()

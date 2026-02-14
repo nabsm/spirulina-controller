@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..core.config import settings
+from ..core.config import Settings, settings
 from ..core.timeutil import now_utc, now_local
 from ..domain.controller import LuxController
 from ..domain.schedule import TimeWindow, SchedulePolicy
@@ -18,7 +19,10 @@ from .schemas import (
     ScheduleReplaceRequest,
     SimManualRequest,
     SimPatternRequest,
+    SettingsUpdateRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -237,3 +241,96 @@ async def sim_set_pattern(req: SimPatternRequest, sensor: SimulatedLuxSensor = D
     cfg = PatternConfig(**req.model_dump())
     sensor.set_pattern(cfg)
     return {"ok": True, "pattern": cfg.__dict__}
+
+
+# --- Settings endpoints ---
+
+RESTART_REQUIRED_KEYS = frozenset({
+    "sensor_mode", "actuator_mode", "rs485_port", "rs485_baudrate",
+    "rs485_slave_id", "lux_functioncode", "lux_register_address",
+    "lux_register_count", "lux_scale", "sqlite_path",
+})
+
+# All Settings field names (for validation)
+_SETTINGS_FIELDS = {name: field for name, field in Settings.model_fields.items()}
+
+
+def _cast_setting_value(key: str, raw: object) -> object:
+    """Cast a raw value to the type expected by the Settings field."""
+    field = _SETTINGS_FIELDS.get(key)
+    if field is None:
+        raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+    annotation = field.annotation
+    if annotation is bool or (hasattr(annotation, '__origin__') and annotation is bool):
+        if isinstance(raw, str):
+            return raw.lower() in ("true", "1", "yes")
+        return bool(raw)
+    if annotation is int:
+        return int(raw)
+    if annotation is float:
+        return float(raw)
+    if annotation is str:
+        return str(raw)
+    return raw
+
+
+def get_actuator():  # overridden in main
+    raise RuntimeError("Actuator dependency not configured")
+
+
+@router.get("/settings")
+async def get_settings():
+    current = {}
+    for key in _SETTINGS_FIELDS:
+        current[key] = getattr(settings, key)
+    return {
+        "settings": current,
+        "restart_required_keys": list(RESTART_REQUIRED_KEYS),
+    }
+
+
+@router.put("/settings")
+async def update_settings(
+    req: SettingsUpdateRequest,
+    repo: SQLiteRepository = Depends(get_repo),
+):
+    updated_keys = []
+    db_updates: dict[str, str] = {}
+    runtime_applied: list[str] = []
+
+    for key, raw_value in req.updates.items():
+        if key not in _SETTINGS_FIELDS:
+            raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+
+        typed_value = _cast_setting_value(key, raw_value)
+        setattr(settings, key, typed_value)
+        db_updates[key] = json.dumps(typed_value)
+        updated_keys.append(key)
+
+        if key not in RESTART_REQUIRED_KEYS:
+            runtime_applied.append(key)
+
+    # Hot-update Sonoff actuator connection params if changed
+    sonoff_keys = {"sonoff_ip", "sonoff_port", "sonoff_device_id", "sonoff_timeout_seconds"}
+    if sonoff_keys & set(updated_keys):
+        try:
+            act = get_actuator()
+            from ..drivers.actuator_sonoff import SonoffBasicR3Actuator
+            if isinstance(act, SonoffBasicR3Actuator):
+                act._base_url = f"http://{settings.sonoff_ip}:{settings.sonoff_port}"
+                act._device_id = settings.sonoff_device_id
+                act._timeout = settings.sonoff_timeout_seconds
+                logger.info("Hot-updated Sonoff actuator connection params")
+        except Exception:
+            pass  # actuator not available or not sonoff
+
+    await repo.set_settings_batch(db_updates)
+
+    return {"ok": True, "updated_keys": updated_keys, "runtime_applied": runtime_applied}
+
+
+@router.post("/settings/discover-sonoff")
+async def discover_sonoff():
+    from ..services.mdns_discovery import discover_sonoff_devices
+    devices = await discover_sonoff_devices(timeout=3.0)
+    return {"devices": devices}

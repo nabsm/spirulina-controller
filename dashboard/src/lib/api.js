@@ -56,4 +56,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  settingsGet: () => request("/api/settings"),
+  settingsUpdate: (updates) =>
+    request("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ updates }),
+    }),
+  discoverSonoff: () =>
+    request("/api/settings/discover-sonoff", { method: "POST" }),
 };

@@ -31,9 +31,10 @@ from .sensors.rs485_lux_sensor import RS485LuxSensor, LuxRegisterSpec
 logger = logging.getLogger(__name__)
 
 
-sensor: Sensor
+sensor: Sensor | None = None
 sim_sensor: SimulatedLuxSensor | None = None
 rs485_driver: RS485ModbusRTU | None = None
+actuator = None
 
 def build_sensor() -> Sensor:
     global sim_sensor, rs485_driver
@@ -46,8 +47,6 @@ def build_sensor() -> Sensor:
                 slave_id=settings.rs485_slave_id,
             )
         )
-        # lazy connect inside driver; or connect explicitly here:
-        # rs485_driver.connect()
 
         spec = LuxRegisterSpec(
             functioncode=settings.lux_functioncode,
@@ -60,8 +59,6 @@ def build_sensor() -> Sensor:
     # default to sim
     sim_sensor = SimulatedLuxSensor()
     return sim_sensor
-
-sensor = build_sensor()
 
 
 def build_actuator():
@@ -77,8 +74,7 @@ def build_actuator():
     return SimulatedLightActuator()
 
 
-# --- Singletons ---
-actuator = build_actuator()
+# --- Singletons (not dependent on DB settings) ---
 controller = LuxController()
 
 def _load_default_windows() -> list[TimeWindow]:
@@ -137,12 +133,33 @@ def get_sim_sensor() -> SimulatedLuxSensor:
     return sim_sensor
 
 
+def get_actuator():
+    return actuator
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("Starting %s (mode=%s)", settings.app_name, settings.mode)
 
     await repo.init()
+
+    # Load persisted settings from DB (overrides env/.env values)
+    db_settings = await repo.get_all_settings()
+    for key, raw_value in db_settings.items():
+        if hasattr(settings, key):
+            try:
+                typed = json.loads(raw_value)
+                setattr(settings, key, typed)
+            except Exception as e:
+                logger.warning("Failed to load DB setting %s=%r: %s", key, raw_value, e)
+    if db_settings:
+        logger.info("Loaded %d setting(s) from DB: %s", len(db_settings), list(db_settings.keys()))
+
+    # Build sensor and actuator AFTER DB settings are loaded
+    global sensor, actuator
+    sensor = build_sensor()
+    actuator = build_actuator()
 
     global sampler
     sampler = SamplerService(
@@ -166,9 +183,6 @@ async def lifespan(app: FastAPI):
         logger.info("Shutdown complete")
 
 
-
-
-
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # Make the dependency functions in routes resolve to the real ones
@@ -177,5 +191,6 @@ app.dependency_overrides[routes_module.get_controller] = get_controller
 app.dependency_overrides[routes_module.get_schedule] = get_schedule
 app.dependency_overrides[routes_module.get_repo] = get_repo
 app.dependency_overrides[routes_module.get_sim_sensor] = get_sim_sensor
+app.dependency_overrides[routes_module.get_actuator] = get_actuator
 
 app.include_router(api_router, prefix="/api")

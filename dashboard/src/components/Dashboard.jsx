@@ -3,6 +3,7 @@ import { api } from "../lib/api.js";
 import { usePoll } from "../lib/usePoll.js";
 import { Card, Pill, Button, Input, ToggleSwitch, TriToggle } from "./ui.jsx";
 import SimPanel from "./SimPanel.jsx";
+import SettingsPanel from "./SettingsPanel.jsx";
 import {
   ResponsiveContainer,
   LineChart,
@@ -78,6 +79,8 @@ export default function Dashboard() {
 
   // Sim panel drawer
   const [simPanelOpen, setSimPanelOpen] = useState(false);
+  // Settings panel drawer
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
   // Schedule editing
   const [schedDraft, setSchedDraft] = useState(null);
@@ -252,6 +255,9 @@ export default function Dashboard() {
           <Pill tone={healthPills.ctrlTone}>Controller {ctrl?.enabled ? "ENABLED" : "DISABLED"}</Pill>
           <Pill tone={healthPills.lightTone}>Light {lightOn ? "ON" : "OFF"}</Pill>
           {simEnabled && <Pill tone="warn">SIM MODE</Pill>}
+          <Button variant="ghost" onClick={() => setSettingsPanelOpen(true)}>
+            Settings
+          </Button>
         </div>
       </div>
 
@@ -536,6 +542,11 @@ export default function Dashboard() {
       <div className="mt-8 text-xs text-text2">
         Tip: Controller decisions are based on the 30-second average (6 x 5s). After changing lux, wait ~30s to see a decision.
       </div>
+
+      <SettingsPanel
+        open={settingsPanelOpen}
+        onClose={() => setSettingsPanelOpen(false)}
+      />
 
       <SimPanel
         open={simPanelOpen}

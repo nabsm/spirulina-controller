@@ -39,3 +39,25 @@ class SimPatternRequest(BaseModel):
     ramp_min: float = 2000
     ramp_max: float = 7000
     ramp_period_s: float = 600
+
+
+class SettingsUpdateRequest(BaseModel):
+    updates: dict[str, object]
+
+
+class SettingsResponse(BaseModel):
+    settings: dict[str, object]
+    restart_required_keys: List[str]
+
+
+class SonoffDeviceOut(BaseModel):
+    id: str
+    ip: Optional[str]
+    port: Optional[int]
+    hostname: Optional[str]
+    type: str
+    txt: dict[str, str] = {}
+
+
+class DiscoveryResponse(BaseModel):
+    devices: List[SonoffDeviceOut]
