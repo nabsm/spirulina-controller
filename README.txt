@@ -1,0 +1,17 @@
+How to run
+
+SIM mode
+
+export SENSOR_MODE=sim
+
+
+RS485 mode
+
+export SENSOR_MODE=rs485
+export RS485_PORT=/dev/ttyUSB0
+export RS485_BAUDRATE=9600
+export RS485_SLAVE_ID=1
+export LUX_FUNCTIONCODE=3
+export LUX_REGISTER_ADDRESS=0
+export LUX_REGISTER_COUNT=1
+export LUX_SCALE=1.0

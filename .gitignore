@@ -1,0 +1,37 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Database & logs
+*.db
+*.log
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.sw?
+.DS_Store
+
+# Node (dashboard)
+dashboard/node_modules/
+dashboard/dist/
+dashboard/dist-ssr/
+dashboard/*.local
+
+# Claude Code
+.claude/
+
+# Misc
+files.txt
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
