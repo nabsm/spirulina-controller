@@ -16,6 +16,7 @@ import app.api.routes as routes_module
 
 from .drivers.sensors_sim import SimulatedLuxSensor
 from .drivers.actuators_sim import SimulatedLightActuator
+from .drivers.actuator_sonoff import SonoffBasicR3Actuator
 from .domain.controller import LuxController
 from .domain.schedule import SchedulePolicy, TimeWindow
 from .services.sampler import SamplerService
@@ -63,10 +64,21 @@ def build_sensor() -> Sensor:
 sensor = build_sensor()
 
 
+def build_actuator():
+    if settings.actuator_mode.lower() == "sonoff":
+        logger.info("Using Sonoff BASICR3 actuator at %s:%s", settings.sonoff_ip, settings.sonoff_port)
+        return SonoffBasicR3Actuator(
+            ip=settings.sonoff_ip,
+            port=settings.sonoff_port,
+            device_id=settings.sonoff_device_id,
+            timeout=settings.sonoff_timeout_seconds,
+        )
+    logger.info("Using simulated actuator")
+    return SimulatedLightActuator()
 
 
 # --- Singletons ---
-actuator_sim = SimulatedLightActuator()
+actuator = build_actuator()
 controller = LuxController()
 
 def _load_default_windows() -> list[TimeWindow]:
@@ -135,7 +147,7 @@ async def lifespan(app: FastAPI):
     global sampler
     sampler = SamplerService(
         sensor=sensor,
-        actuator=actuator_sim,
+        actuator=actuator,
         repo=repo,
         schedule=schedule,
         controller=controller,

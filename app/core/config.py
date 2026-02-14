@@ -31,6 +31,15 @@ class Settings(BaseSettings):
 
 
 
+    # Actuator mode: "sim" or "sonoff"
+    actuator_mode: str = "sim"
+
+    # Sonoff BASICR3 (eWeLink DIY mode)
+    sonoff_ip: str = "192.168.1.19"
+    sonoff_port: int = 8081
+    sonoff_device_id: str = "1000b8d61a"
+    sonoff_timeout_seconds: float = 5.0
+
     # Sensor mode: "sim" or "rs485"
     sensor_mode: str = "sim"
 
