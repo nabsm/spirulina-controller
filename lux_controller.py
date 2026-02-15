@@ -36,9 +36,9 @@ class Config:
     baudrate: int = 9600
     slave_id: int = 1
     function_code: int = 3        # 3=holding, 4=input registers
-    register_address: int = 0
-    register_count: int = 1
-    lux_scale: float = 1.0        # multiply raw register by this
+    register_address: int = 2
+    register_count: int = 2
+    lux_scale: float = 0.001      # raw = (hi<<16)|lo, lux = raw/1000
 
     # Sampling
     sample_interval_s: float = 6.0
@@ -127,20 +127,22 @@ class LuxSensor:
             resp = self._client.read_input_registers(
                 address=cfg.register_address,
                 count=cfg.register_count,
-                slave=cfg.slave_id,
+                device_id=cfg.slave_id,
             )
         else:
             resp = self._client.read_holding_registers(
                 address=cfg.register_address,
                 count=cfg.register_count,
-                slave=cfg.slave_id,
+                device_id=cfg.slave_id,
             )
 
         if resp.isError():
             self._connected = False
             raise RuntimeError(f"Modbus error: {resp}")
 
-        raw = resp.registers[0]
+        raw = 0
+        for r in resp.registers:
+            raw = (raw << 16) | r
         return raw * cfg.lux_scale
 
     def close(self) -> None:
@@ -269,8 +271,9 @@ def main() -> None:
     p.add_argument("--slave-id", type=int, default=1)
     p.add_argument("--function-code", type=int, default=3, choices=[3, 4],
                    help="Modbus function code: 3=holding, 4=input registers")
-    p.add_argument("--register", type=int, default=0, help="Register address")
-    p.add_argument("--scale", type=float, default=1.0, help="Raw register → lux multiplier")
+    p.add_argument("--register", type=int, default=2, help="Register address")
+    p.add_argument("--count", type=int, default=2, help="Number of registers to read")
+    p.add_argument("--scale", type=float, default=0.001, help="Raw register → lux multiplier")
 
     p.add_argument("--sample-interval", type=float, default=6.0, help="Seconds between reads")
     p.add_argument("--avg-window", type=float, default=30.0, help="Averaging window in seconds")
@@ -297,6 +300,7 @@ def main() -> None:
         slave_id=args.slave_id,
         function_code=args.function_code,
         register_address=args.register,
+        register_count=args.count,
         lux_scale=args.scale,
         sample_interval_s=args.sample_interval,
         avg_window_s=args.avg_window,

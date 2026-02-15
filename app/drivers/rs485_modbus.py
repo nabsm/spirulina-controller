@@ -75,7 +75,7 @@ class RS485ModbusRTU:
         Function code 3. Returns list of 16-bit register values.
         """
         self._ensure_connected()
-        rr = self._client.read_holding_registers(address=address, count=count, slave=self.cfg.slave_id)
+        rr = self._client.read_holding_registers(address=address, count=count, device_id=self.cfg.slave_id)
         if rr.isError():
             # Mark disconnected so next call attempts reconnect
             self._connected = False
@@ -87,7 +87,7 @@ class RS485ModbusRTU:
         Function code 4. Returns list of 16-bit register values.
         """
         self._ensure_connected()
-        rr = self._client.read_input_registers(address=address, count=count, slave=self.cfg.slave_id)
+        rr = self._client.read_input_registers(address=address, count=count, device_id=self.cfg.slave_id)
         if rr.isError():
             self._connected = False
             raise RuntimeError(f"Modbus read_input_registers error: {rr}")

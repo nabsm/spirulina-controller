@@ -50,9 +50,9 @@ class Settings(BaseSettings):
 
     # Lux register definition
     lux_functioncode: int = 3             # 3=holding, 4=input
-    lux_register_address: int = 0
-    lux_register_count: int = 1
-    lux_scale: float = 1.0
+    lux_register_address: int = 2
+    lux_register_count: int = 2
+    lux_scale: float = 0.001              # raw = (hi<<16)|lo, lux = raw/1000
 
 
 

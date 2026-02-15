@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LuxRegisterSpec:
     functioncode: int = 3  # 3=holding, 4=input
-    address: int = 0
-    count: int = 1
-    scale: float = 1.0     # e.g. 0.1 if sensor returns lux*10
+    address: int = 2
+    count: int = 2
+    scale: float = 0.001   # raw = (hi<<16)|lo, lux = raw/1000
 
 
 class RS485LuxSensor(Sensor):
@@ -48,6 +48,10 @@ class RS485LuxSensor(Sensor):
         if not regs:
             raise RuntimeError("No registers returned")
 
-        raw = regs[0]
+        # Combine registers into a single value (big-endian, hi word first)
+        raw = 0
+        for r in regs:
+            raw = (raw << 16) | r
+
         lux = float(raw) * float(self._spec.scale)
         return lux
