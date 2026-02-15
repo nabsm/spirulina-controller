@@ -1,9 +1,12 @@
 from __future__ import annotations
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 from .models import ControlDecision, Thresholds
 from ..core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -85,13 +88,30 @@ class LuxController:
         min_on = thresholds.min_lux
         max_off = thresholds.max_lux
 
+        logger.info(
+            "decide: avg=%.1f light=%s min=%.0f max=%.0f hys=%.0f "
+            "→ ON_if<%.0f OFF_if>%.0f",
+            avg_lux, "ON" if current_light_state else "OFF",
+            min_on, max_off, h,
+            min_on - h, max_off + h,
+        )
+
         if avg_lux < (min_on - h) and not current_light_state:
-            return ControlDecision("ON", f"Avg lux {avg_lux:.1f} below min-hys", thresholds, avg_lux)
+            decision = ControlDecision("ON", f"Avg lux {avg_lux:.1f} below min-hys ({min_on - h:.0f})", thresholds, avg_lux)
+            logger.info("decision: %s — %s", decision.action, decision.reason)
+            return decision
 
         if avg_lux > (max_off + h) and current_light_state:
-            return ControlDecision("OFF", f"Avg lux {avg_lux:.1f} above max+hys", thresholds, avg_lux)
+            decision = ControlDecision("OFF", f"Avg lux {avg_lux:.1f} above max+hys ({max_off + h:.0f})", thresholds, avg_lux)
+            logger.info("decision: %s — %s", decision.action, decision.reason)
+            return decision
 
-        return ControlDecision("NOOP", "Within band", thresholds, avg_lux)
+        reason = (
+            f"Within band (avg={avg_lux:.1f}, light={'ON' if current_light_state else 'OFF'}, "
+            f"ON_if<{min_on - h:.0f}, OFF_if>{max_off + h:.0f})"
+        )
+        logger.info("decision: NOOP — %s", reason)
+        return ControlDecision("NOOP", reason, thresholds, avg_lux)
 
     def mark_switched(self, now_utc: datetime) -> None:
         self.state.last_switch_utc = now_utc
