@@ -43,12 +43,12 @@ export default function SettingsPanel({ open, onClose }) {
 
   function hasChanges() {
     if (!original || !draft) return false;
-    return Object.keys(draft).some((k) => draft[k] !== original[k]);
+    return Object.keys(draft).some((k) => String(draft[k]) !== String(original[k]));
   }
 
   function changedKeys() {
     if (!original || !draft) return [];
-    return Object.keys(draft).filter((k) => draft[k] !== original[k]);
+    return Object.keys(draft).filter((k) => String(draft[k]) !== String(original[k]));
   }
 
   function hasRestartChanges() {
@@ -141,42 +141,42 @@ export default function SettingsPanel({ open, onClose }) {
           <Field label="Sample Seconds">
             <Input
               value={String(draft.sample_seconds ?? "")}
-              onChange={(v) => update("sample_seconds", Number(v))}
+              onChange={(v) => update("sample_seconds", v)}
               type="number"
             />
           </Field>
           <Field label="Avg Samples">
             <Input
               value={String(draft.avg_samples ?? "")}
-              onChange={(v) => update("avg_samples", Number(v))}
+              onChange={(v) => update("avg_samples", v)}
               type="number"
             />
           </Field>
           <Field label="Hysteresis Lux">
             <Input
               value={String(draft.hysteresis_lux ?? "")}
-              onChange={(v) => update("hysteresis_lux", Number(v))}
+              onChange={(v) => update("hysteresis_lux", v)}
               type="number"
             />
           </Field>
           <Field label="Min Switch Interval (s)">
             <Input
               value={String(draft.min_switch_interval_seconds ?? "")}
-              onChange={(v) => update("min_switch_interval_seconds", Number(v))}
+              onChange={(v) => update("min_switch_interval_seconds", v)}
               type="number"
             />
           </Field>
           <Field label="Default Min Lux">
             <Input
               value={String(draft.default_min_lux ?? "")}
-              onChange={(v) => update("default_min_lux", Number(v))}
+              onChange={(v) => update("default_min_lux", v)}
               type="number"
             />
           </Field>
           <Field label="Default Max Lux">
             <Input
               value={String(draft.default_max_lux ?? "")}
-              onChange={(v) => update("default_max_lux", Number(v))}
+              onChange={(v) => update("default_max_lux", v)}
               type="number"
             />
           </Field>
@@ -211,42 +211,42 @@ export default function SettingsPanel({ open, onClose }) {
             <Field label="Baudrate" badge="restart required">
               <Input
                 value={String(draft.rs485_baudrate ?? "")}
-                onChange={(v) => update("rs485_baudrate", Number(v))}
+                onChange={(v) => update("rs485_baudrate", v)}
                 type="number"
               />
             </Field>
             <Field label="Slave ID" badge="restart required">
               <Input
                 value={String(draft.rs485_slave_id ?? "")}
-                onChange={(v) => update("rs485_slave_id", Number(v))}
+                onChange={(v) => update("rs485_slave_id", v)}
                 type="number"
               />
             </Field>
             <Field label="Function Code" badge="restart required">
               <Input
                 value={String(draft.lux_functioncode ?? "")}
-                onChange={(v) => update("lux_functioncode", Number(v))}
+                onChange={(v) => update("lux_functioncode", v)}
                 type="number"
               />
             </Field>
             <Field label="Register Address" badge="restart required">
               <Input
                 value={String(draft.lux_register_address ?? "")}
-                onChange={(v) => update("lux_register_address", Number(v))}
+                onChange={(v) => update("lux_register_address", v)}
                 type="number"
               />
             </Field>
             <Field label="Register Count" badge="restart required">
               <Input
                 value={String(draft.lux_register_count ?? "")}
-                onChange={(v) => update("lux_register_count", Number(v))}
+                onChange={(v) => update("lux_register_count", v)}
                 type="number"
               />
             </Field>
             <Field label="Lux Scale" badge="restart required">
               <Input
                 value={String(draft.lux_scale ?? "")}
-                onChange={(v) => update("lux_scale", Number(v))}
+                onChange={(v) => update("lux_scale", v)}
                 type="number"
               />
             </Field>
@@ -275,7 +275,7 @@ export default function SettingsPanel({ open, onClose }) {
               <Field label="Sonoff Port">
                 <Input
                   value={String(draft.sonoff_port ?? "")}
-                  onChange={(v) => update("sonoff_port", Number(v))}
+                  onChange={(v) => update("sonoff_port", v)}
                   type="number"
                 />
               </Field>
@@ -285,7 +285,7 @@ export default function SettingsPanel({ open, onClose }) {
               <Field label="Timeout (s)">
                 <Input
                   value={String(draft.sonoff_timeout_seconds ?? "")}
-                  onChange={(v) => update("sonoff_timeout_seconds", Number(v))}
+                  onChange={(v) => update("sonoff_timeout_seconds", v)}
                   type="number"
                 />
               </Field>
