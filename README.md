@@ -66,15 +66,14 @@ Create `/etc/caddy/Caddyfile`:
 
 ```
 :80 {
-    root * /home/admin/dev/spirulina-controller/dashboard/dist
-    file_server
-
     handle /api/* {
         reverse_proxy localhost:8000
     }
 
     handle {
+        root * /home/admin/dev/spirulina-controller/dashboard/dist
         try_files {path} /index.html
+        file_server
     }
 }
 ```
