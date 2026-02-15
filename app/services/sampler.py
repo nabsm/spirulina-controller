@@ -66,94 +66,6 @@ class SamplerService:
             await self._task
             self._task = None
 
-    # async def _run(self) -> None:
-    #     logger.info("Sampler loop started (sample_seconds=%s avg_samples=%s)", settings.sample_seconds, settings.avg_samples)
-    #     while not self._stop.is_set():
-    #         try:
-    #             lux = self._sensor.read()
-    #             reading = SensorReading(
-    #                 ts_utc=now_utc(),
-    #                 value=float(lux),
-    #                 ok=True,
-    #                 error=None,
-    #                 sensor_id=self._sensor.sensor_id,
-    #                 unit=getattr(self._sensor, "unit", "") or "",
-    #             )
-
-    #             self.live.last_reading = reading
-    #             await self._repo.insert_reading(reading)
-
-    #             if reading.ok:
-    #                 self._buf.append(reading.value)
-
-    #             # Update average when we have enough samples
-    #             avg_lux: Optional[float] = None
-    #             if len(self._buf) == settings.avg_samples:
-    #                 avg_lux = sum(self._buf) / len(self._buf)
-
-    #             self.live.avg_lux_30s = avg_lux
-    #             self.live.controller_enabled = self._controller.state.enabled
-    #             self.live.override_active = self._controller.state.override_active
-
-    #             # Determine thresholds by schedule
-    #             thr = self._schedule.active_thresholds(now_local())
-    #             if thr:
-    #                 self.live.active_window_label = thr.window_label
-    #                 self.live.active_min_lux = thr.min_lux
-    #                 self.live.active_max_lux = thr.max_lux
-    #             else:
-    #                 self.live.active_window_label = None
-    #                 self.live.active_min_lux = None
-    #                 self.live.active_max_lux = None
-
-    #             # Decide and act only when avg is computed OR if sensor is failing (fail-safe path)
-    #             current_state = await self._actuator.get_state()
-    #             self.live.light_state = current_state
-
-    #             decision = self._controller.decide(
-    #                 now_utc=now_utc(),
-    #                 avg_lux=avg_lux,
-    #                 thresholds=thr,
-    #                 current_light_state=current_state,
-    #                 sensor_ok=reading.ok,
-    #             )
-
-    #             self.live.last_decision = decision.action
-    #             self.live.last_reason = decision.reason
-
-    #             # Apply action if needed
-    #             if decision.action in ("ON", "OFF"):
-    #                 desired = (decision.action == "ON")
-    #                 if desired != current_state:
-    #                     await self._actuator.set_state(desired, decision.reason)
-    #                     self._controller.mark_switched(now_utc())
-
-    #                     # Log action
-    #                     await self._repo.insert_action(
-    #                         ActionEvent(
-    #                             ts_utc=now_utc(),
-    #                             actuator_id=self._actuator.actuator_id,
-    #                             state=desired,
-    #                             reason=decision.reason,
-    #                             avg_lux=decision.avg_lux,
-    #                             min_lux=decision.thresholds.min_lux if decision.thresholds else None,
-    #                             max_lux=decision.thresholds.max_lux if decision.thresholds else None,
-    #                             window_label=decision.thresholds.window_label if decision.thresholds else None,
-    #                         )
-    #                     )
-    #                     self.live.light_state = desired
-
-    #         except Exception as e:
-    #             logger.exception("Sampler loop error: %s", e)
-
-    #         # sleep with cancellation awareness
-    #         try:
-    #             await asyncio.wait_for(self._stop.wait(), timeout=settings.sample_seconds)
-    #         except asyncio.TimeoutError:
-    #             pass
-    #     logger.info("Sampler loop stopped")
-
-
     async def _run(self) -> None:
         logger.info(
             "Sampler loop started (sample_seconds=%s avg_samples=%s)",
@@ -167,8 +79,9 @@ class SamplerService:
             avg_lux: Optional[float] = None
 
             try:
-                # 1) Read sensor (sync)
-                lux = self._sensor.read()
+                # 1) Read sensor (sync call — run in thread to avoid blocking event loop)
+                loop = asyncio.get_running_loop()
+                lux = await loop.run_in_executor(None, self._sensor.read)
 
                 # 2) Wrap into structured reading
                 reading = SensorReading(
