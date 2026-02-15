@@ -21,3 +21,6 @@ def configure_logging() -> None:
     )
     fh.setFormatter(fmt)
     logger.addHandler(fh)
+
+    # Silence noisy httpx request logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
