@@ -246,7 +246,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <div className="text-2xl font-bold text-primary">Spirulina Lux Control</div>
+          <div className="text-2xl font-bold text-primary">Spirulina Controller</div>
           <div className="text-sm text-text2">Live monitoring & control (FastAPI + Raspberry Pi)</div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">

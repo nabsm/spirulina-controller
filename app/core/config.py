@@ -5,7 +5,7 @@ from pydantic import Field
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "Spirulina Lux Control"
+    app_name: str = "Spirulina Controller"
     timezone: str = "Asia/Kuala_Lumpur"
 
     # Sampling
