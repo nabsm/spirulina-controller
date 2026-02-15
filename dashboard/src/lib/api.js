@@ -57,6 +57,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  systemInfo: () => request("/api/system-info"),
   settingsGet: () => request("/api/settings"),
   settingsUpdate: (updates) =>
     request("/api/settings", {

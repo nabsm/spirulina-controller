@@ -1,3 +1,34 @@
+import { useState } from "react";
+
+export function Collapsible({ title, right, defaultOpen = true, children }) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+      <div className="rounded-xl2 bg-panel shadow-soft border border-line overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surfaceHover transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <svg
+              className={`h-4 w-4 text-text2 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="text-sm font-semibold text-text2">{title}</span>
+          </div>
+          {right && (
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              {right}
+            </div>
+          )}
+        </button>
+        {open && <div className="px-4 pb-4">{children}</div>}
+      </div>
+    );
+  }
+
 export function Pill({ children, tone = "neutral" }) {
     const base =
       "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold";

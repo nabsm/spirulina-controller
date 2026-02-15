@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import socket
+import subprocess
+import time
 from datetime import timedelta
 from pathlib import Path
 
@@ -351,6 +355,83 @@ async def update_settings(
     await repo.set_settings_batch(db_updates)
 
     return {"ok": True, "updated_keys": updated_keys, "runtime_applied": runtime_applied}
+
+
+def _get_cpu_temp() -> float | None:
+    """Read CPU temperature. Try Pi sysfs first, then psutil."""
+    try:
+        thermal = Path("/sys/class/thermal/thermal_zone0/temp")
+        if thermal.exists():
+            return int(thermal.read_text().strip()) / 1000.0
+    except Exception:
+        pass
+    try:
+        import psutil
+        temps = psutil.sensors_temperatures()
+        if temps:
+            for entries in temps.values():
+                if entries:
+                    return entries[0].current
+    except Exception:
+        pass
+    return None
+
+
+def _get_throttled() -> tuple[str | None, bool | None]:
+    """Run vcgencmd get_throttled on Pi. Returns (hex_str, is_throttled)."""
+    try:
+        result = subprocess.run(
+            ["vcgencmd", "get_throttled"],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0:
+            # Output like "throttled=0x0"
+            raw = result.stdout.strip().split("=")[-1]
+            flag = int(raw, 16) != 0
+            return raw, flag
+    except Exception:
+        pass
+    return None, None
+
+
+def _get_local_ip() -> str | None:
+    """Get local IP via UDP socket trick (no actual traffic sent)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.1)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return None
+
+
+def _collect_system_info() -> dict:
+    """Collect system info (runs in thread due to blocking psutil calls)."""
+    import psutil
+
+    cpu_temp = _get_cpu_temp()
+    throttled, throttled_flag = _get_throttled()
+    uptime_seconds = time.time() - psutil.boot_time()
+    ip_address = _get_local_ip()
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+
+    return {
+        "cpu_temp_c": round(cpu_temp, 1) if cpu_temp is not None else None,
+        "throttled": throttled,
+        "throttled_flag": throttled_flag,
+        "uptime_seconds": round(uptime_seconds),
+        "ip_address": ip_address,
+        "cpu_percent": cpu_percent,
+    }
+
+
+@router.get("/system-info")
+async def get_system_info():
+    loop = asyncio.get_event_loop()
+    info = await loop.run_in_executor(None, _collect_system_info)
+    return info
 
 
 @router.post("/settings/discover-sonoff")

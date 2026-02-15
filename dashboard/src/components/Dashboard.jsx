@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { usePoll } from "../lib/usePoll.js";
-import { Card, Pill, Button, Input, ToggleSwitch, TriToggle } from "./ui.jsx";
+import { Card, Collapsible, Pill, Button, Input, ToggleSwitch, TriToggle } from "./ui.jsx";
 import SimPanel from "./SimPanel.jsx";
 import SettingsPanel from "./SettingsPanel.jsx";
 import {
@@ -63,6 +63,7 @@ export default function Dashboard() {
   const actions = usePoll(() => api.actions(240, 400), 20000, { immediate: true });
   const sim = usePoll(api.simStatus, 8000, { immediate: true });
   const schedule = usePoll(api.scheduleGet, 0, { immediate: true });
+  const sysInfo = usePoll(api.systemInfo, 30000, { immediate: true });
 
   // Override
   const [overrideMins, setOverrideMins] = useState("10");
@@ -341,7 +342,7 @@ export default function Dashboard() {
 
       {/* Controls – full width below chart */}
       <div className="mt-5">
-        <Card title="Controls">
+        <Collapsible title="Controls" defaultOpen={true}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Controller toggle */}
             <div>
@@ -393,155 +394,187 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </Card>
+        </Collapsible>
       </div>
 
       {/* Schedule + Events */}
-      <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <Card
-            title="Schedule (time windows)"
-            right={
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={() => setSchedConfirm("defaults")}>Load Defaults</Button>
-                <Button variant="danger" onClick={() => setSchedConfirm("clear")}>Clear</Button>
-                <Button variant="ghost" onClick={addSchedRow}>Add</Button>
-                <Button variant="accent" onClick={saveSchedule} disabled={!schedDraft || schedDraft.length === 0}>
-                  Save
-                </Button>
-              </div>
-            }
-          >
-            {schedConfirm && (
-              <div className="mb-3 flex items-center gap-3 rounded-xl2 border border-yellow-500/50 bg-yellow-900/20 p-3 text-sm">
-                <span className="text-yellow-300">
-                  {schedConfirm === "defaults"
-                    ? "Replace all schedule windows with defaults?"
-                    : "Remove all schedule windows?"}
-                </span>
-                <Button
-                  variant={schedConfirm === "defaults" ? "accent" : "danger"}
-                  onClick={async () => {
-                    await safe(async () => {
-                      if (schedConfirm === "defaults") {
-                        const data = await api.scheduleDefaults();
-                        setSchedDraft(data.windows);
-                        await api.schedulePut(data.windows);
-                      } else {
-                        setSchedDraft([]);
-                        await api.schedulePut([]);
-                      }
-                      await schedule.refresh();
-                      await live.refresh();
-                    });
-                    setSchedConfirm(null);
-                  }}
-                >
-                  Confirm
-                </Button>
-                <Button variant="ghost" onClick={() => setSchedConfirm(null)}>Cancel</Button>
-              </div>
-            )}
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="text-text2">
-                  <tr className="border-b border-line">
-                    <th className="py-2 text-left">Label</th>
-                    <th className="py-2 text-left">Start</th>
-                    <th className="py-2 text-left">End</th>
-                    <th className="py-2 text-left">Min</th>
-                    <th className="py-2 text-left">Max</th>
-                    <th className="py-2 text-left">Enabled</th>
-                    <th className="py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(schedDraft || []).map((w, idx) => (
-                    <tr key={w.id} className="border-b border-line">
-                      <td className="py-2 pr-2">
-                        <Input
-                          value={w.label ?? ""}
-                          onChange={(v) => updateSchedRow(idx, "label", v)}
-                          placeholder="Label"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <Input
-                          value={w.start_time}
-                          onChange={(v) => updateSchedRow(idx, "start_time", v)}
-                          placeholder="HH:MM"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <Input
-                          value={w.end_time}
-                          onChange={(v) => updateSchedRow(idx, "end_time", v)}
-                          placeholder="HH:MM"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <Input
-                          value={String(w.min_lux)}
-                          onChange={(v) => updateSchedRow(idx, "min_lux", Number(v))}
-                          type="number"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <Input
-                          value={String(w.max_lux)}
-                          onChange={(v) => updateSchedRow(idx, "max_lux", Number(v))}
-                          type="number"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <select
-                          className="w-full rounded-xl2 border border-line bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
-                          value={String(!!w.enabled)}
-                          onChange={(e) => updateSchedRow(idx, "enabled", e.target.value === "true")}
-                        >
-                          <option value="true">Yes</option>
-                          <option value="false">No</option>
-                        </select>
-                      </td>
-                      <td className="py-2 text-right">
-                        <Button variant="danger" onClick={() => removeSchedRow(idx)}>Remove</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <div className="mt-5">
+        <Collapsible
+          title="Schedule & Events"
+          defaultOpen={true}
+          right={
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setSchedConfirm("defaults")}>Load Defaults</Button>
+              <Button variant="danger" onClick={() => setSchedConfirm("clear")}>Clear</Button>
+              <Button variant="ghost" onClick={addSchedRow}>Add</Button>
+              <Button variant="accent" onClick={saveSchedule} disabled={!schedDraft || schedDraft.length === 0}>
+                Save
+              </Button>
             </div>
-
-            {saveMsg && <div className="mt-2 text-xs text-text2">{saveMsg}</div>}
-          </Card>
-        </div>
-
-        <div className="lg:col-span-1">
-          <Card title="Recent Actions" right={<Button variant="ghost" onClick={() => actions.refresh()}>Refresh</Button>}>
-            <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
-              {(actions.data?.rows || []).slice(-40).reverse().map((a, i) => (
-                <div key={i} className="rounded-xl2 border border-line bg-surface p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-primary">{a.state ? "LIGHT ON" : "LIGHT OFF"}</div>
-                    <div className="text-xs text-text2">{fmtTime(a.ts_utc)}</div>
-                  </div>
-                  <div className="mt-1 text-xs text-text2">{a.reason}</div>
-                  <div className="mt-1 text-xs text-text2">
-                    Avg: {fmtNum(a.avg_lux, 0)} | Min/Max: {a.min_lux ?? "-"} / {a.max_lux ?? "-"} | {a.window_label ?? "-"}
-                  </div>
+          }
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              {schedConfirm && (
+                <div className="mb-3 flex items-center gap-3 rounded-xl2 border border-yellow-500/50 bg-yellow-900/20 p-3 text-sm">
+                  <span className="text-yellow-300">
+                    {schedConfirm === "defaults"
+                      ? "Replace all schedule windows with defaults?"
+                      : "Remove all schedule windows?"}
+                  </span>
+                  <Button
+                    variant={schedConfirm === "defaults" ? "accent" : "danger"}
+                    onClick={async () => {
+                      await safe(async () => {
+                        if (schedConfirm === "defaults") {
+                          const data = await api.scheduleDefaults();
+                          setSchedDraft(data.windows);
+                          await api.schedulePut(data.windows);
+                        } else {
+                          setSchedDraft([]);
+                          await api.schedulePut([]);
+                        }
+                        await schedule.refresh();
+                        await live.refresh();
+                      });
+                      setSchedConfirm(null);
+                    }}
+                  >
+                    Confirm
+                  </Button>
+                  <Button variant="ghost" onClick={() => setSchedConfirm(null)}>Cancel</Button>
                 </div>
-              ))}
-              {(actions.data?.rows || []).length === 0 && (
-                <div className="text-sm text-text2">No actions recorded yet.</div>
               )}
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-text2">
+                    <tr className="border-b border-line">
+                      <th className="py-2 text-left">Label</th>
+                      <th className="py-2 text-left">Start</th>
+                      <th className="py-2 text-left">End</th>
+                      <th className="py-2 text-left">Min</th>
+                      <th className="py-2 text-left">Max</th>
+                      <th className="py-2 text-left">Enabled</th>
+                      <th className="py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(schedDraft || []).map((w, idx) => (
+                      <tr key={w.id} className="border-b border-line">
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={w.label ?? ""}
+                            onChange={(v) => updateSchedRow(idx, "label", v)}
+                            placeholder="Label"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={w.start_time}
+                            onChange={(v) => updateSchedRow(idx, "start_time", v)}
+                            placeholder="HH:MM"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={w.end_time}
+                            onChange={(v) => updateSchedRow(idx, "end_time", v)}
+                            placeholder="HH:MM"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={String(w.min_lux)}
+                            onChange={(v) => updateSchedRow(idx, "min_lux", Number(v))}
+                            type="number"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={String(w.max_lux)}
+                            onChange={(v) => updateSchedRow(idx, "max_lux", Number(v))}
+                            type="number"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <select
+                            className="w-full rounded-xl2 border border-line bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                            value={String(!!w.enabled)}
+                            onChange={(e) => updateSchedRow(idx, "enabled", e.target.value === "true")}
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </td>
+                        <td className="py-2 text-right">
+                          <Button variant="danger" onClick={() => removeSchedRow(idx)}>Remove</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {saveMsg && <div className="mt-2 text-xs text-text2">{saveMsg}</div>}
             </div>
-          </Card>
-        </div>
+
+            <div className="lg:col-span-1">
+              <div className="text-sm font-semibold text-text2 mb-2">Recent Actions</div>
+              <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
+                {(actions.data?.rows || []).slice(-40).reverse().map((a, i) => (
+                  <div key={i} className="rounded-xl2 border border-line bg-surface p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-primary">{a.state ? "LIGHT ON" : "LIGHT OFF"}</div>
+                      <div className="text-xs text-text2">{fmtTime(a.ts_utc)}</div>
+                    </div>
+                    <div className="mt-1 text-xs text-text2">{a.reason}</div>
+                    <div className="mt-1 text-xs text-text2">
+                      Avg: {fmtNum(a.avg_lux, 0)} | Min/Max: {a.min_lux ?? "-"} / {a.max_lux ?? "-"} | {a.window_label ?? "-"}
+                    </div>
+                  </div>
+                ))}
+                {(actions.data?.rows || []).length === 0 && (
+                  <div className="text-sm text-text2">No actions recorded yet.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Collapsible>
       </div>
 
       <div className="mt-8 text-xs text-text2">
         Tip: Controller decisions are based on the 30-second average (6 x 5s). After changing lux, wait ~30s to see a decision.
       </div>
+
+      {/* System info footer */}
+      {sysInfo.data && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text2">
+          {sysInfo.data.cpu_temp_c != null && (
+            <span>
+              CPU{" "}
+              <span className={
+                sysInfo.data.cpu_temp_c >= 80 ? "text-red-400 font-semibold"
+                : sysInfo.data.cpu_temp_c >= 70 ? "text-yellow-400 font-semibold"
+                : "text-green-400"
+              }>
+                {sysInfo.data.cpu_temp_c.toFixed(1)}°C
+              </span>
+            </span>
+          )}
+          {sysInfo.data.cpu_percent != null && (
+            <span>Load {sysInfo.data.cpu_percent.toFixed(0)}%</span>
+          )}
+          {sysInfo.data.uptime_seconds != null && (
+            <span>Up {Math.floor(sysInfo.data.uptime_seconds / 3600)}h {Math.floor((sysInfo.data.uptime_seconds % 3600) / 60)}m</span>
+          )}
+          {sysInfo.data.ip_address && (
+            <span>IP {sysInfo.data.ip_address}</span>
+          )}
+          {sysInfo.data.throttled_flag && (
+            <Pill tone="bad">THROTTLED {sysInfo.data.throttled}</Pill>
+          )}
+        </div>
+      )}
 
       <SettingsPanel
         open={settingsPanelOpen}
