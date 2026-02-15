@@ -37,7 +37,6 @@ class RS485ModbusRTU:
             parity=cfg.parity,
             stopbits=cfg.stopbits,
             timeout=cfg.timeout_s,
-            method="rtu",
         )
         self._connected = False
         self._backoff = cfg.reconnect_backoff_s
