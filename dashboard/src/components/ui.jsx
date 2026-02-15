@@ -80,7 +80,7 @@ export function Pill({ children, tone = "neutral" }) {
     );
   }
 
-  export function Input({ value, onChange, placeholder, type = "text" }) {
+  export function Input({ value, onChange, placeholder, type = "text", step }) {
     return (
       <input
         className="w-full rounded-xl2 border border-line bg-surface px-3 py-2 text-sm text-text placeholder-text2 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
@@ -88,6 +88,7 @@ export function Pill({ children, tone = "neutral" }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
+        step={type === "number" ? (step ?? "any") : undefined}
       />
     );
   }
