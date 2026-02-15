@@ -146,9 +146,11 @@ async def get_schedule_defaults():
 @router.put("/schedule")
 async def replace_schedule(
     req: ScheduleReplaceRequest,
-    schedule: SchedulePolicy = Depends(get_schedule)
+    schedule: SchedulePolicy = Depends(get_schedule),
+    repo: SQLiteRepository = Depends(get_repo),
 ):
     windows: list[TimeWindow] = []
+    serialized: list[dict] = []
     for win in req.windows:
         windows.append(
             TimeWindow(
@@ -162,7 +164,19 @@ async def replace_schedule(
                 label=win.label or "",
             )
         )
+        serialized.append({
+            "id": win.id,
+            "start_time": win.start_time,
+            "end_time": win.end_time,
+            "min_lux": float(win.min_lux),
+            "max_lux": float(win.max_lux),
+            "enabled": bool(win.enabled),
+            "priority": int(win.priority),
+            "label": win.label or "",
+        })
     schedule.replace(windows)
+    # Persist to DB so schedule survives restarts
+    await repo.set_settings_batch({"_schedule_windows": json.dumps(serialized)})
     return {"ok": True, "count": len(windows)}
 
 

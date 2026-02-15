@@ -154,6 +154,30 @@ async def lifespan(app: FastAPI):
     if db_settings:
         logger.info("Loaded %d setting(s) from DB: %s", len(db_settings), list(db_settings.keys()))
 
+    # Load persisted schedule windows from DB
+    raw_schedule = db_settings.get("_schedule_windows")
+    if raw_schedule:
+        try:
+            windows_data = json.loads(raw_schedule)
+            windows = []
+            for w in windows_data:
+                h1, m1 = w["start_time"].split(":")
+                h2, m2 = w["end_time"].split(":")
+                windows.append(TimeWindow(
+                    id=w["id"],
+                    start=time(int(h1), int(m1)),
+                    end=time(int(h2), int(m2)),
+                    min_lux=float(w["min_lux"]),
+                    max_lux=float(w["max_lux"]),
+                    enabled=bool(w.get("enabled", True)),
+                    priority=int(w.get("priority", 0)),
+                    label=w.get("label", ""),
+                ))
+            schedule.replace(windows)
+            logger.info("Loaded %d schedule window(s) from DB", len(windows))
+        except Exception as e:
+            logger.warning("Failed to load schedule from DB, using defaults: %s", e)
+
     # Build sensor and actuator AFTER DB settings are loaded
     global sensor, actuator
     sensor = build_sensor()
