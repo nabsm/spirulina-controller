@@ -180,8 +180,21 @@ async def lifespan(app: FastAPI):
 
     # Build sensor and actuator AFTER DB settings are loaded
     global sensor, actuator
-    sensor = build_sensor()
-    actuator = build_actuator()
+    try:
+        sensor = build_sensor()
+    except Exception as e:
+        logger.error("Failed to build sensor (mode=%s): %s — falling back to sim", settings.sensor_mode, e)
+        settings.sensor_mode = "sim"
+        sim_sensor_fallback = SimulatedLuxSensor()
+        globals()["sim_sensor"] = sim_sensor_fallback
+        sensor = sim_sensor_fallback
+
+    try:
+        actuator = build_actuator()
+    except Exception as e:
+        logger.error("Failed to build actuator (mode=%s): %s — falling back to sim", settings.actuator_mode, e)
+        settings.actuator_mode = "sim"
+        actuator = SimulatedLightActuator()
 
     global sampler
     sampler = SamplerService(
