@@ -74,11 +74,16 @@ class RS485ModbusRTU:
         Function code 3. Returns list of 16-bit register values.
         """
         self._ensure_connected()
+        logger.debug(
+            "read_holding_registers(addr=%d, count=%d, device_id=%d) on %s",
+            address, count, self.cfg.slave_id, self.cfg.port,
+        )
         rr = self._client.read_holding_registers(address=address, count=count, device_id=self.cfg.slave_id)
         if rr.isError():
             # Mark disconnected so next call attempts reconnect
             self._connected = False
             raise RuntimeError(f"Modbus read_holding_registers error: {rr}")
+        logger.debug("read_holding_registers result: %s", list(rr.registers))
         return list(rr.registers)
 
     def read_input_registers(self, address: int, count: int) -> list[int]:

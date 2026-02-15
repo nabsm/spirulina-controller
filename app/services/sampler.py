@@ -81,7 +81,10 @@ class SamplerService:
             try:
                 # 1) Read sensor (sync call — run in thread to avoid blocking event loop)
                 loop = asyncio.get_running_loop()
+                sensor_type = type(self._sensor).__name__
+                logger.debug("Reading sensor type=%s id=%s", sensor_type, getattr(self._sensor, "sensor_id", "?"))
                 lux = await loop.run_in_executor(None, self._sensor.read)
+                logger.info("Sensor read OK: lux=%.3f (sensor=%s)", lux, getattr(self._sensor, "sensor_id", "?"))
 
                 # 2) Wrap into structured reading
                 reading = SensorReading(
@@ -103,7 +106,7 @@ class SamplerService:
                     sensor_id=getattr(self._sensor, "sensor_id", "unknown"),
                     unit=getattr(self._sensor, "unit", "") or "",
                 )
-                logger.exception("Sensor read failed: %s", e)
+                logger.exception("Sensor read FAILED: %s", e)
 
             try:
                 # 3) Persist reading (repo expects SensorReading, not float)

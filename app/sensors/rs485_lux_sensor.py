@@ -48,10 +48,16 @@ class RS485LuxSensor(Sensor):
         if not regs:
             raise RuntimeError("No registers returned")
 
+        logger.info(
+            "RS485 read: fc=%d addr=%d count=%d regs=%s",
+            self._spec.functioncode, self._spec.address, self._spec.count, regs,
+        )
+
         # Combine registers into a single value (big-endian, hi word first)
         raw = 0
         for r in regs:
             raw = (raw << 16) | r
 
         lux = float(raw) * float(self._spec.scale)
+        logger.info("RS485 lux: raw=%d scale=%s lux=%.3f", raw, self._spec.scale, lux)
         return lux
