@@ -213,33 +213,43 @@ async def actions(
 
 
 # --- Simulation endpoints ---
+
+def _require_sim(sensor):
+    if sensor is None:
+        raise HTTPException(status_code=404, detail="Sim sensor not available (sensor_mode is not 'sim')")
+    return sensor
+
+
 @router.get("/sim/status")
 async def sim_status(sensor: SimulatedLuxSensor = Depends(get_sim_sensor)):
-    return sensor.status()
+    if sensor is None:
+        return {"available": False, "enabled": False}
+    return {**sensor.status(), "available": True}
 
 
 @router.post("/sim/enable")
 async def sim_enable(sensor: SimulatedLuxSensor = Depends(get_sim_sensor)):
-    sensor.enable()
+    _require_sim(sensor).enable()
     return {"ok": True, "enabled": True}
 
 
 @router.post("/sim/disable")
 async def sim_disable(sensor: SimulatedLuxSensor = Depends(get_sim_sensor)):
-    sensor.disable()
+    _require_sim(sensor).disable()
     return {"ok": True, "enabled": False}
 
 
 @router.post("/sim/lux/manual")
 async def sim_set_manual(req: SimManualRequest, sensor: SimulatedLuxSensor = Depends(get_sim_sensor)):
-    sensor.set_manual(req.lux)
+    _require_sim(sensor).set_manual(req.lux)
     return {"ok": True, "mode": "manual", "lux": req.lux}
 
 
 @router.post("/sim/lux/pattern")
 async def sim_set_pattern(req: SimPatternRequest, sensor: SimulatedLuxSensor = Depends(get_sim_sensor)):
+    s = _require_sim(sensor)
     cfg = PatternConfig(**req.model_dump())
-    sensor.set_pattern(cfg)
+    s.set_pattern(cfg)
     return {"ok": True, "pattern": cfg.__dict__}
 
 

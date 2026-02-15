@@ -127,9 +127,7 @@ def get_repo() -> SQLiteRepository:
     return repo
 
 
-def get_sim_sensor() -> SimulatedLuxSensor:
-    if sim_sensor is None:
-        raise RuntimeError("Sim sensor not available (sensor_mode is not 'sim').")
+def get_sim_sensor() -> SimulatedLuxSensor | None:
     return sim_sensor
 
 
