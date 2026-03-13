@@ -74,9 +74,9 @@ class LuxController:
             action = "ON" if desired else "OFF"
             return ControlDecision(action, "Sensor fault (fail-safe)", thresholds, avg_lux)
 
-        # If outside schedule, do NOOP (or you could force OFF; your call)
+        # Outside any schedule window → lights off
         if thresholds is None:
-            return ControlDecision("NOOP", "Outside control window", None, avg_lux)
+            return ControlDecision("OFF", "Outside control window", None, avg_lux)
 
         # Anti-chatter: min switch interval
         if self.state.last_switch_utc:

@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Safety: if sensor fails repeatedly, what to do?
     fail_safe_light_state: bool = False  # False = OFF
 
+    # Authentication
+    access_password: str = ""  # Set in .env to enable auth gate
+    auth_secret_key: str = ""  # Auto-generated if empty
+
 
 
     # Actuator mode: "sim" or "sonoff"

@@ -1,11 +1,22 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+// Global auth callback — set by App to trigger login screen on 401
+let onAuthRequired = null;
+export function setAuthRequiredCallback(cb) {
+  onAuthRequired = cb;
+}
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
+
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    if (onAuthRequired) onAuthRequired();
+    throw new Error("Authentication required");
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -66,4 +77,13 @@ export const api = {
     }),
   discoverSonoff: () =>
     request("/api/settings/discover-sonoff", { method: "POST" }),
+
+  // Auth
+  authCheck: () => request("/api/auth/check"),
+  authLogin: (password) =>
+    request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+  authLogout: () => request("/api/auth/logout", { method: "POST" }),
 };

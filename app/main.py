@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import time
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .core.config import settings
 from .core.log import configure_logging
 
 from .api.routes import router as api_router
+from .api.auth import router as auth_router, verify_cookie
 import app.api.routes as routes_module
 
 from .drivers.sensors_sim import SimulatedLuxSensor
@@ -143,8 +147,11 @@ async def lifespan(app: FastAPI):
     await repo.init()
 
     # Load persisted settings from DB (overrides env/.env values)
+    _protected = {"access_password", "auth_secret_key"}
     db_settings = await repo.get_all_settings()
     for key, raw_value in db_settings.items():
+        if key in _protected:
+            continue  # auth settings come from .env only
         if hasattr(settings, key):
             try:
                 typed = json.loads(raw_value)
@@ -219,6 +226,31 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+# CORS: only allow same-origin requests (frontend served from same host)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["Content-Type"],
+)
+
+# Auto-generate auth secret key if not set
+if not settings.auth_secret_key:
+    settings.auth_secret_key = secrets.token_hex(32)
+    logger.info("Auto-generated auth secret key (sessions won't survive restart; set AUTH_SECRET_KEY in .env to persist)")
+
+# Auth middleware: protect /api/* except /api/auth/*
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if settings.access_password and path.startswith("/api/") and not path.startswith("/api/auth/"):
+        if not verify_cookie(request):
+            return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+    return await call_next(request)
+
+app.include_router(auth_router)
 
 # Make the dependency functions in routes resolve to the real ones
 app.dependency_overrides[routes_module.get_sampler] = get_sampler

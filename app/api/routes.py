@@ -279,6 +279,9 @@ RESTART_REQUIRED_KEYS = frozenset({
     "lux_register_count", "lux_scale", "sqlite_path",
 })
 
+# Auth-related keys must not be readable or writable via the settings API
+_PROTECTED_KEYS = frozenset({"access_password", "auth_secret_key"})
+
 # All Settings field names (for validation)
 _SETTINGS_FIELDS = {name: field for name, field in Settings.model_fields.items()}
 
@@ -310,6 +313,8 @@ def get_actuator():  # overridden in main
 async def get_settings():
     current = {}
     for key in _SETTINGS_FIELDS:
+        if key in _PROTECTED_KEYS:
+            continue
         current[key] = getattr(settings, key)
     return {
         "settings": current,
@@ -329,6 +334,8 @@ async def update_settings(
     for key, raw_value in req.updates.items():
         if key not in _SETTINGS_FIELDS:
             raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+        if key in _PROTECTED_KEYS:
+            raise HTTPException(status_code=403, detail=f"Setting '{key}' cannot be modified via API")
 
         typed_value = _cast_setting_value(key, raw_value)
         setattr(settings, key, typed_value)

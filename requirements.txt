@@ -10,3 +10,4 @@ pyserial
 httpx>=0.27.0
 zeroconf>=0.132.0
 psutil>=5.9.0
+itsdangerous>=2.1.0
