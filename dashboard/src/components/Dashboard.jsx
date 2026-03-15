@@ -74,6 +74,7 @@ const LuxChart = memo(function LuxChart({ chartData, activeMin, activeMax, range
 const RANGE_CONFIG = {
   "1h":  { minutes: 60,    limit: 1200,  bucket: null, poll: 20000, label: "1h" },
   "24h": { minutes: 1440,  limit: 5000,  bucket: 1,    poll: 60000, label: "24h" },
+  "3d":  { minutes: 4320,  limit: 5000,  bucket: 3,    poll: 120000, label: "3d" },
   "7d":  { minutes: 10080, limit: 5000,  bucket: 5,    poll: 120000, label: "7d" },
 };
 
