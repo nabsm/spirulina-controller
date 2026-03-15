@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api.js";
 import { usePoll } from "../lib/usePoll.js";
 import { Card, Collapsible, Pill, Button, Input, ToggleSwitch, TriToggle } from "./ui.jsx";
@@ -26,17 +26,31 @@ function fmtNum(v, digits = 0) {
   return Number(v).toFixed(digits);
 }
 
-const LuxChart = memo(function LuxChart({ chartData, activeMin, activeMax }) {
+function fmtDateTime(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const day = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `${day} ${time}`;
+}
+
+const LuxChart = memo(function LuxChart({ chartData, activeMin, activeMax, range }) {
+  const showDate = range !== "1h";
+  const tickFmt = showDate ? (v) => fmtDateTime(v) : (v) => fmtTime(v);
+  const tooltipLabel = showDate
+    ? (v) => fmtDateTime(v)
+    : (v) => `Time: ${fmtTime(v)}`;
+
   return (
     <div className="h-80 min-h-[320px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-          <XAxis dataKey="t" tickFormatter={(v) => fmtTime(v)} minTickGap={20} stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
+          <XAxis dataKey="t" tickFormatter={tickFmt} minTickGap={showDate ? 50 : 20} stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
           <YAxis stroke="#94a3b8" tick={{ fill: "#94a3b8" }} />
           <Tooltip
-            labelFormatter={(v) => `Time: ${fmtTime(v)}`}
-            formatter={(val) => [val, "lux"]}
+            labelFormatter={tooltipLabel}
+            formatter={(val) => [Number(val).toFixed(0), "lux"]}
             contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "0.5rem", color: "#f1f5f9" }}
             labelStyle={{ color: "#94a3b8" }}
           />
@@ -57,9 +71,24 @@ const LuxChart = memo(function LuxChart({ chartData, activeMin, activeMax }) {
   );
 });
 
+const RANGE_CONFIG = {
+  "1h":  { minutes: 60,    limit: 1200,  bucket: null, poll: 20000, label: "1h" },
+  "24h": { minutes: 1440,  limit: 5000,  bucket: 1,    poll: 60000, label: "24h" },
+  "7d":  { minutes: 10080, limit: 5000,  bucket: 5,    poll: 120000, label: "7d" },
+};
+
 export default function Dashboard() {
+  const [chartRange, setChartRange] = useState("1h");
+  const rangeRef = useRef(chartRange);
+  rangeRef.current = chartRange;
+
+  const rangeCfg = RANGE_CONFIG[chartRange];
+
   const live = usePoll(api.live, 2500, { immediate: true });
-  const readings = usePoll(() => api.readings(60, 1200), 20000, { immediate: true }); // reduce limit too
+  const readings = usePoll(() => {
+    const c = RANGE_CONFIG[rangeRef.current];
+    return api.readings(c.minutes, c.limit, c.bucket);
+  }, rangeCfg.poll, { immediate: true });
   const actions = usePoll(() => api.actions(240, 400), 20000, { immediate: true });
   const sim = usePoll(api.simStatus, 8000, { immediate: true });
   const schedule = usePoll(api.scheduleGet, 0, { immediate: true });
@@ -316,9 +345,18 @@ export default function Dashboard() {
       {/* Chart – full width */}
       <div className="mt-5">
         <Card
-          title="Lux Trend (last 60 minutes)"
+          title="Lux Trend"
           right={
             <div className="flex items-center gap-2">
+              {Object.entries(RANGE_CONFIG).map(([key, cfg]) => (
+                <Button
+                  key={key}
+                  variant={chartRange === key ? "accent" : "ghost"}
+                  onClick={() => { setChartRange(key); setTimeout(() => readings.refresh(), 0); }}
+                >
+                  {cfg.label}
+                </Button>
+              ))}
               <Button variant="ghost" onClick={() => readings.togglePause()}>
                 {readings.paused ? "Resume" : "Pause"}
               </Button>
@@ -333,9 +371,11 @@ export default function Dashboard() {
               <Pill tone="warn">Auto-refresh paused</Pill>
             </div>
           )}
-          <LuxChart chartData={chartData} activeMin={activeMin} activeMax={activeMax} />
+          <LuxChart chartData={chartData} activeMin={activeMin} activeMax={activeMax} range={chartRange} />
           <div className="mt-3 text-xs text-text2">
-            Shaded band shows active min/max thresholds (when inside a schedule window).
+            {chartRange === "1h"
+              ? "Shaded band shows active min/max thresholds (when inside a schedule window)."
+              : `Showing ${RANGE_CONFIG[chartRange].label} of data (averaged per ${RANGE_CONFIG[chartRange].bucket}min).`}
           </div>
         </Card>
       </div>

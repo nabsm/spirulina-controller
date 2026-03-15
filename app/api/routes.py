@@ -188,11 +188,19 @@ async def replace_schedule(
 async def readings(
     minutes: int = 60,
     limit: int = 5000,
+    bucket_minutes: int | None = None,
     repo: SQLiteRepository = Depends(get_repo),
 ):
     end = now_utc()
     start = end - timedelta(minutes=max(1, minutes))
-    rows = await repo.query_readings(start.isoformat(), end.isoformat(), limit=min(limit, 20000))
+    cap = min(limit, 20000)
+    if bucket_minutes and bucket_minutes >= 1:
+        rows = await repo.query_readings_bucketed(
+            start.isoformat(), end.isoformat(),
+            bucket_minutes=bucket_minutes, limit=cap,
+        )
+    else:
+        rows = await repo.query_readings(start.isoformat(), end.isoformat(), limit=cap)
     return {
         "start_utc": start.isoformat(),
         "end_utc": end.isoformat(),

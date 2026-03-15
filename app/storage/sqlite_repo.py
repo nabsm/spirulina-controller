@@ -102,6 +102,44 @@ class SQLiteRepository:
             )
         return list(reversed(out))
 
+    async def query_readings_bucketed(
+        self, start_ts: str, end_ts: str, bucket_minutes: int, limit: int
+    ) -> List[Reading]:
+        """Return averaged readings grouped into time buckets."""
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute(
+                """
+                SELECT
+                    MIN(ts_utc) AS ts_utc,
+                    sensor_id,
+                    AVG(value) AS value,
+                    '' AS unit,
+                    MIN(ok) AS ok,
+                    NULL AS error
+                FROM readings
+                WHERE ts_utc >= ? AND ts_utc <= ? AND ok = 1
+                GROUP BY sensor_id,
+                         CAST(julianday(ts_utc) * 1440 / ? AS INTEGER)
+                ORDER BY ts_utc
+                LIMIT ?
+                """,
+                (start_ts, end_ts, bucket_minutes, limit),
+            )
+            rows = await cur.fetchall()
+        out: list[Reading] = []
+        for ts, sid, val, unit, ok, err in rows:
+            out.append(
+                Reading(
+                    ts_utc=datetime.fromisoformat(ts),
+                    sensor_id=sid,
+                    value=round(float(val), 1),
+                    unit=unit,
+                    ok=bool(ok),
+                    error=err,
+                )
+            )
+        return out
+
     async def query_actions(self, start_ts: str, end_ts: str, limit: int) -> List[ActionEvent]:
         async with aiosqlite.connect(self._path) as db:
             cur = await db.execute(

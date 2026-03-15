@@ -31,8 +31,11 @@ async function request(path, options = {}) {
 
 export const api = {
   live: () => request("/api/live"),
-  readings: (minutes = 60, limit = 5000) =>
-    request(`/api/readings?minutes=${minutes}&limit=${limit}`),
+  readings: (minutes = 60, limit = 5000, bucketMinutes = null) => {
+    let url = `/api/readings?minutes=${minutes}&limit=${limit}`;
+    if (bucketMinutes) url += `&bucket_minutes=${bucketMinutes}`;
+    return request(url);
+  },
   actions: (minutes = 240, limit = 2000) =>
     request(`/api/actions?minutes=${minutes}&limit=${limit}`),
 
