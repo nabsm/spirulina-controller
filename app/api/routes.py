@@ -273,10 +273,14 @@ async def sim_set_pattern(req: SimPatternRequest, sensor: SimulatedLuxSensor = D
 
 # --- Settings endpoints ---
 
-RESTART_REQUIRED_KEYS = frozenset({
+RELOAD_REQUIRED_KEYS = frozenset({
     "sensor_mode", "actuator_mode", "rs485_port", "rs485_baudrate",
     "rs485_slave_id", "lux_functioncode", "lux_register_address",
-    "lux_register_count", "lux_scale", "sqlite_path",
+    "lux_register_count", "lux_scale",
+})
+
+RESTART_REQUIRED_KEYS = frozenset({
+    "sqlite_path",
 })
 
 # Auth-related keys must not be readable or writable via the settings API
@@ -318,6 +322,7 @@ async def get_settings():
         current[key] = getattr(settings, key)
     return {
         "settings": current,
+        "reload_required_keys": list(RELOAD_REQUIRED_KEYS),
         "restart_required_keys": list(RESTART_REQUIRED_KEYS),
     }
 
@@ -342,7 +347,7 @@ async def update_settings(
         db_updates[key] = json.dumps(typed_value)
         updated_keys.append(key)
 
-        if key not in RESTART_REQUIRED_KEYS:
+        if key not in RESTART_REQUIRED_KEYS and key not in RELOAD_REQUIRED_KEYS:
             runtime_applied.append(key)
 
     # Hot-update Sonoff actuator connection params if changed
@@ -439,6 +444,14 @@ async def get_system_info():
     loop = asyncio.get_event_loop()
     info = await loop.run_in_executor(None, _collect_system_info)
     return info
+
+
+@router.post("/reload")
+async def reload_components():
+    """Hot-reload sensor, actuator, and sampler without restarting the process."""
+    from ..main import reload_components as _reload
+    result = await _reload()
+    return {"ok": True, **result}
 
 
 @router.post("/settings/discover-sonoff")

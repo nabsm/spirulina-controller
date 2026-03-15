@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api.js";
 import { Drawer, Card, Button, Input, Select, Pill, ToggleSwitch } from "./ui.jsx";
 
-const RESTART_KEYS = new Set([
+const RELOAD_KEYS = new Set([
   "sensor_mode", "actuator_mode", "rs485_port", "rs485_baudrate",
   "rs485_slave_id", "lux_functioncode", "lux_register_address",
-  "lux_register_count", "lux_scale", "sqlite_path",
+  "lux_register_count", "lux_scale",
 ]);
+
+const RESTART_KEYS = new Set(["sqlite_path"]);
 
 export default function SettingsPanel({ open, onClose }) {
   const [original, setOriginal] = useState(null);
@@ -14,6 +16,7 @@ export default function SettingsPanel({ open, onClose }) {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
+  const [reloading, setReloading] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [devices, setDevices] = useState([]);
 
@@ -51,6 +54,10 @@ export default function SettingsPanel({ open, onClose }) {
     return Object.keys(draft).filter((k) => String(draft[k]) !== String(original[k]));
   }
 
+  function hasReloadChanges() {
+    return changedKeys().some((k) => RELOAD_KEYS.has(k));
+  }
+
   function hasRestartChanges() {
     return changedKeys().some((k) => RESTART_KEYS.has(k));
   }
@@ -65,17 +72,35 @@ export default function SettingsPanel({ open, onClose }) {
         updates[k] = draft[k];
       }
       const res = await api.settingsUpdate(updates);
+      const needsReload = res.updated_keys.some((k) => RELOAD_KEYS.has(k));
+      const needsRestart = res.updated_keys.some((k) => RESTART_KEYS.has(k));
       setSaveMsg(
         `Saved ${res.updated_keys.length} setting(s). ` +
-        (res.runtime_applied.length < res.updated_keys.length
-          ? "Some changes require a restart."
-          : "All changes applied immediately.")
+        (needsRestart
+          ? "SQLite path change requires a full restart."
+          : needsReload
+            ? "Click 'Apply & Reload' to activate hardware changes."
+            : "All changes applied immediately.")
       );
       setOriginal({ ...draft });
     } catch (e) {
       setError(String(e?.message || e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function reload() {
+    setReloading(true);
+    setSaveMsg("");
+    setError("");
+    try {
+      const res = await api.reload();
+      setSaveMsg(`Reloaded — sensor: ${res.sensor_mode}, actuator: ${res.actuator_mode}`);
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setReloading(false);
     }
   }
 
@@ -193,7 +218,7 @@ export default function SettingsPanel({ open, onClose }) {
 
       {/* Sensor */}
       <Section title="Sensor">
-        <Field label="Sensor Mode" badge={changedKeys().includes("sensor_mode") ? "restart required" : null}>
+        <Field label="Sensor Mode" badge={changedKeys().includes("sensor_mode") ? "reload required" : null}>
           <Select
             value={draft.sensor_mode || "sim"}
             onChange={(v) => update("sensor_mode", v)}
@@ -205,45 +230,45 @@ export default function SettingsPanel({ open, onClose }) {
         </Field>
         {draft.sensor_mode === "rs485" && (
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <Field label="RS485 Port" badge="restart required">
+            <Field label="RS485 Port" badge="reload required">
               <Input value={draft.rs485_port || ""} onChange={(v) => update("rs485_port", v)} />
             </Field>
-            <Field label="Baudrate" badge="restart required">
+            <Field label="Baudrate" badge="reload required">
               <Input
                 value={String(draft.rs485_baudrate ?? "")}
                 onChange={(v) => update("rs485_baudrate", v)}
                 type="number"
               />
             </Field>
-            <Field label="Slave ID" badge="restart required">
+            <Field label="Slave ID" badge="reload required">
               <Input
                 value={String(draft.rs485_slave_id ?? "")}
                 onChange={(v) => update("rs485_slave_id", v)}
                 type="number"
               />
             </Field>
-            <Field label="Function Code" badge="restart required">
+            <Field label="Function Code" badge="reload required">
               <Input
                 value={String(draft.lux_functioncode ?? "")}
                 onChange={(v) => update("lux_functioncode", v)}
                 type="number"
               />
             </Field>
-            <Field label="Register Address" badge="restart required">
+            <Field label="Register Address" badge="reload required">
               <Input
                 value={String(draft.lux_register_address ?? "")}
                 onChange={(v) => update("lux_register_address", v)}
                 type="number"
               />
             </Field>
-            <Field label="Register Count" badge="restart required">
+            <Field label="Register Count" badge="reload required">
               <Input
                 value={String(draft.lux_register_count ?? "")}
                 onChange={(v) => update("lux_register_count", v)}
                 type="number"
               />
             </Field>
-            <Field label="Lux Scale" badge="restart required">
+            <Field label="Lux Scale" badge="reload required">
               <Input
                 value={String(draft.lux_scale ?? "")}
                 onChange={(v) => update("lux_scale", v)}
@@ -256,7 +281,7 @@ export default function SettingsPanel({ open, onClose }) {
 
       {/* Actuator */}
       <Section title="Actuator">
-        <Field label="Actuator Mode" badge={changedKeys().includes("actuator_mode") ? "restart required" : null}>
+        <Field label="Actuator Mode" badge={changedKeys().includes("actuator_mode") ? "reload required" : null}>
           <Select
             value={draft.actuator_mode || "sim"}
             onChange={(v) => update("actuator_mode", v)}
@@ -326,16 +351,19 @@ export default function SettingsPanel({ open, onClose }) {
         </Field>
       </Section>
 
-      {/* Save */}
+      {/* Save & Reload */}
       <div className="mt-4 border-t border-line pt-4">
         {hasRestartChanges() && (
           <div className="mb-3 rounded-xl2 border border-yellow-500/50 bg-yellow-900/20 p-3 text-sm text-yellow-300">
-            Some changes require a restart to take effect.
+            SQLite path change requires a full process restart.
           </div>
         )}
         <div className="flex items-center gap-3">
           <Button variant="accent" onClick={save} disabled={!hasChanges() || saving}>
             {saving ? "Saving..." : "Save Settings"}
+          </Button>
+          <Button variant="ghost" onClick={reload} disabled={reloading}>
+            {reloading ? "Reloading..." : "Apply & Reload"}
           </Button>
           {hasChanges() && (
             <span className="text-xs text-text2">{changedKeys().length} change(s)</span>

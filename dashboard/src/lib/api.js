@@ -75,6 +75,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ updates }),
     }),
+  reload: () => request("/api/reload", { method: "POST" }),
   discoverSonoff: () =>
     request("/api/settings/discover-sonoff", { method: "POST" }),
 

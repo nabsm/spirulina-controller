@@ -139,6 +139,65 @@ def get_actuator():
     return actuator
 
 
+async def reload_components() -> dict:
+    """Hot-reload sensor, actuator, and sampler from current settings.
+
+    Stops the running sampler, tears down drivers, rebuilds from settings,
+    and restarts the sampler loop. Returns a status dict.
+    """
+    global sensor, sim_sensor, rs485_driver, actuator, sampler
+
+    logger.info("Reloading components (sensor_mode=%s, actuator_mode=%s)", settings.sensor_mode, settings.actuator_mode)
+
+    # 1) Stop sampler
+    if sampler:
+        await sampler.stop()
+
+    # 2) Close RS485 driver if open
+    if rs485_driver is not None:
+        try:
+            rs485_driver.close()
+        except Exception as e:
+            logger.warning("Error closing RS485 driver: %s", e)
+        rs485_driver = None
+    sim_sensor = None
+
+    # 3) Rebuild sensor
+    try:
+        sensor = build_sensor()
+    except Exception as e:
+        logger.error("Failed to build sensor (mode=%s): %s — falling back to sim", settings.sensor_mode, e)
+        settings.sensor_mode = "sim"
+        sim_sensor = SimulatedLuxSensor()
+        sensor = sim_sensor
+
+    # 4) Rebuild actuator
+    try:
+        actuator = build_actuator()
+    except Exception as e:
+        logger.error("Failed to build actuator (mode=%s): %s — falling back to sim", settings.actuator_mode, e)
+        settings.actuator_mode = "sim"
+        actuator = SimulatedLightActuator()
+
+    # 5) Rebuild and start sampler
+    sampler = SamplerService(
+        sensor=sensor,
+        actuator=actuator,
+        repo=repo,
+        schedule=schedule,
+        controller=controller,
+    )
+    await sampler.start()
+
+    logger.info("Reload complete — sampler running with sensor_mode=%s, actuator_mode=%s",
+                settings.sensor_mode, settings.actuator_mode)
+
+    return {
+        "sensor_mode": settings.sensor_mode,
+        "actuator_mode": settings.actuator_mode,
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
